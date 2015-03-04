@@ -71,7 +71,7 @@ void clean(void) {
     free(passcode_text);
 }
 
-static char *valid_options = "hu:adD:cf:k:o:p:V";
+static char *valid_options = "hu:adD:cC:f:k:o:p:V";
 
 int showUsage(char *program_name) {
     fprintf(stdout, "USAGE: %s [OPTION]...\n", program_name);
@@ -82,6 +82,7 @@ int showUsage(char *program_name) {
     fprintf(stdout, "   -d          Delete yubikey from database\n");
     fprintf(stdout, "   -D <path>   Explicitly define the database <path>\n");
     fprintf(stdout, "   -c          Prompt for second factor pass code\n");
+    fprintf(stdout, "   -C <code>   Specify second factor pass code\n");
     fprintf(stdout, "   -f <uid>    Fixed (Public) UID in hex\n");
     fprintf(stdout, "   -k <key>    AES key in hex\n");
     fprintf(stdout, "   -o <otp>    Yubikey generated OTP\n");
@@ -94,6 +95,7 @@ int showUsage(char *program_name) {
 
 void parseCommandLine(int argc, char *argv[]) {
     int ch;                         /* storage var for getopt info */
+    int passcode_size = 0;
 
     /* just to be sane.. */
     mode = MODE_ADD;
@@ -109,7 +111,7 @@ void parseCommandLine(int argc, char *argv[]) {
                 break;
 
             case 'D':
-                snprintf(dbname, 512, "%s", optarg);
+                snprintf(dbname, sizeof(dbname), "%s", optarg);
                 break;
 
             case 'h': /* show help and exit with 1 */
@@ -130,6 +132,16 @@ void parseCommandLine(int argc, char *argv[]) {
 
             case 'c': /* prompt for additional passcode (2nd factor */
                 entry.flags |= YKDB_TOKEN_ENC_PASSCODE;
+                break;
+
+            case 'C': /* specify additional passcode through argument */
+                entry.flags |= YKDB_TOKEN_ENC_PASSCODE;
+
+                passcode_size = strlen(optarg) + 1;
+                passcode_text = malloc(passcode_size);
+                if ( passcode_text != NULL ) {
+                    snprintf(passcode_text, passcode_size, "%s", optarg);
+                }
                 break;
 
             case 'd': /* delete yubikey entry from the database */
@@ -283,9 +295,11 @@ int addYubikeyEntry(void) {
     }
     
     if ( entry.flags & YKDB_TOKEN_ENC_PASSCODE ) {
-        /* obtain and store the second factor passcode if not already defined */
-        passcode_text = getInput("Passcode: ", 256, -1, GETLINE_FLAGS_ECHO_OFF);
-        printf("\n");
+        if ( passcode_text == NULL ) {
+            /* obtain and store the second factor passcode if not already defined */
+            passcode_text = getInput("Passcode: ", 256, -1, GETLINE_FLAGS_ECHO_OFF);
+            printf("\n");
+        }
         
         if ( NULL != passcode_text ) {
             getSHA256((const uint8_t *)passcode_text, strlen(passcode_text), (uint8_t *)&entry.passcode_hash);
@@ -339,11 +353,13 @@ int deleteYubikeyEntry(void) {
     }
     
     if ( tmp_entry.flags & YKDB_TOKEN_ENC_PASSCODE ) {
-        /* obtain and store the second factor passcode if not already defined */
-        passcode_text = getInput("Passcode: ", 256, -1, GETLINE_FLAGS_ECHO_OFF);
-        printf("\n");
+        if ( passcode_text == NULL ) {
+            /* obtain and store the second factor passcode if not already defined */
+            passcode_text = getInput("Passcode: ", 256, -1, GETLINE_FLAGS_ECHO_OFF);
+            printf("\n");
+        }
         
-        if (passcode_text != NULL) {
+        if ( passcode_text != NULL ) {
             getSHA256((const uint8_t *)passcode_text, strlen(passcode_text), (uint8_t *)&entry.passcode_hash);
             safeSnprintfAppend((char *)ticket_enc_key, 256, "|%s", passcode_text);
         }
