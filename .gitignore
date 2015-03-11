@@ -1,6 +1,7 @@
 Makefile
 Makefile.in
 
+/config
 /stamp-h1
 /libtool
 /aclocal.m4
